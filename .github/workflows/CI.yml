@@ -26,33 +26,24 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile
-        load: true
-        tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-    - name: Scan image with Trivy
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-        severity: HIGH,CRITICAL
-        format: table
-        exit-code: 1
-        ignore-unfixed: true
-
-    - name: Push Docker image
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
+    - name: Build & Push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile
         push: true
-        tags: |
-          ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          ${{ env.IMAGE_NAME }}:${{ github.sha }}
+        load: false
+        tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+    - name: Scan image with Trivy (remote)
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: image
+        image-ref: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        severity: HIGH,CRITICAL
+        format: table
+        exit-code: 1
+        ignore-unfixed: true
 
     - name: Upload scan report
       uses: actions/upload-artifact@v4
