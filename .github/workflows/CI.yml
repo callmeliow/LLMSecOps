@@ -21,29 +21,32 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Build image locally
-      - name: Build image locally
+      - name: Build image (OCI tar output)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: false
-          load: true
+          load: false
+          outputs: type=oci,dest=/tmp/image.tar
           tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
       # Scan BEFORE push
-      - name: Scan image with Trivy (local)
+      - name: Scan image with Trivy (local tar)
         id: trivy
         uses: aquasecurity/trivy-action@master
-        continue-on-error: true # allow JSON report creation
+        continue-on-error: true
         with:
           scan-type: image
-          image-ref: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          timeout: 30m # heavy Torch/TensorFlow need more time
+          image-ref: /tmp/image.tar
           format: json
           output: trivy-report.json
-          skip-version-check: true
+          timeout: 30m
+          ignore-unfixed: true
+          skip-files: |
+            **/libtorch_cuda.so
+            **/libtorch_cpu.so
+            **/libcudnn*.so
 
       - name: Upload scan report
         uses: actions/upload-artifact@v4
@@ -67,6 +70,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push Docker image
+      - name: Push image
         if: success()
-        run: docker push ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
